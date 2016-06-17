@@ -5,7 +5,6 @@
 int main()
 {
     ofGLWindowSettings settings;
-    //settings.setGLVersion(2, 1);
     settings.setGLVersion(3, 2);
     settings.width = 1024;
     settings.height = 768;
