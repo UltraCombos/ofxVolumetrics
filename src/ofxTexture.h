@@ -54,6 +54,7 @@ public:
 	void loadData(ofPixels & pix, int d, int xOffset, int yOffset, int zOffset);
 	void loadData(ofShortPixels & pix, int d, int xOffset, int yOffset, int zOffset);
 	void loadData(ofFloatPixels & pix, int d, int xOffset, int yOffset, int zOffset);
+	void loadData(const ofBufferObject & buffer, int zOffset, int glFormat, int glType);
 
 	void bind();
 	void unbind();

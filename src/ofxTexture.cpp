@@ -68,6 +68,14 @@ void ofxTexture::loadData(ofFloatPixels & pix, int d, int xOffset, int yOffset, 
 }
 
 //----------------------------------------------------------
+void ofxTexture::loadData(const ofBufferObject & buffer, int zOffset, int glFormat, int glType) 
+{
+	buffer.bind(GL_PIXEL_UNPACK_BUFFER);
+	loadData((void *)0, (int)texData.width, (int)texData.height, 1, 0, 0, zOffset, glFormat);
+	buffer.unbind(GL_PIXEL_UNPACK_BUFFER);
+}
+
+//----------------------------------------------------------
 void ofxTexture::bind()
 {
 	glActiveTexture((GLuint)texData.textureID);
