@@ -13,6 +13,7 @@ ofxVolumetricsArray::ofxVolumetricsArray()
 //--------------------------------------------------------------
 void ofxVolumetricsArray::setupShader()
 {
+#if 0
     string vertexShader =
 #include "shaders/gl3/vert_array.glsl"
     string fragmentShader =
@@ -22,6 +23,7 @@ void ofxVolumetricsArray::setupShader()
     volumeShader.setupShaderFromSource(GL_VERTEX_SHADER, vertexShader);
     volumeShader.setupShaderFromSource(GL_FRAGMENT_SHADER, fragmentShader);
     volumeShader.linkProgram();
+#endif
 }
 
 //--------------------------------------------------------------

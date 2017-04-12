@@ -13,6 +13,7 @@ ofxVolumetrics3D::ofxVolumetrics3D()
 //--------------------------------------------------------------
 void ofxVolumetrics3D::setupShader()
 {
+#if 0
     string vertexShaderFixed =
 #include "shaders/gl/vert.glsl"
     string fragmentShaderFixed =
@@ -30,6 +31,7 @@ void ofxVolumetrics3D::setupShader()
     volumeShader.setupShaderFromSource(GL_VERTEX_SHADER, vertexShader);
     volumeShader.setupShaderFromSource(GL_FRAGMENT_SHADER, fragmentShader);
     volumeShader.linkProgram();
+#endif
 }
 
 //--------------------------------------------------------------
