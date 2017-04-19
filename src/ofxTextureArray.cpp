@@ -42,7 +42,8 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 	bind();
 	if (hasMipmap)
 	{
-		glTexStorage3D(texData.textureTarget, log2(min(w, h)), texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+		int level = std::max<int>(1,(int)log2(min(w, h)));
+		glTexStorage3D(texData.textureTarget, level, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
 		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	}
 	else

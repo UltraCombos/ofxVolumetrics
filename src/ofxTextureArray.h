@@ -10,11 +10,7 @@ public:
 
 	void allocate(int w, int h, int d, int internalGlDataType) override;
 
-	void enableMipmap()
-	{
-		hasMipmap = true;
-		texData.minFilter = GL_LINEAR_MIPMAP_LINEAR;
-	}
+	void enableMipmap();
 
 	using ofxTexture::loadData;
 protected:
