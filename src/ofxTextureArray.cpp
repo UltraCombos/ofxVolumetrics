@@ -40,9 +40,23 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 	ofRetain();
 
 	bind();
-	glTexStorage3D(texData.textureTarget, 1, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+	if (hasMipmap)
+	{
+		glTexStorage3D(texData.textureTarget, log2(min(w, h)), texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	}
+	else
+	{
+		glTexStorage3D(texData.textureTarget, 1, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	}
+		
 
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	ofTexture t;
+	t.enableMipmap();
+
+	
+	//glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -55,6 +69,12 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 	texData.depth = d;
 	texData.bFlipTexture = false;
 	texData.bAllocated = true;
+}
+//----------------------------------------------------------
+void ofxTextureArray::enableMipmap()
+{
+	hasMipmap = true;
+	texData.minFilter = GL_LINEAR_MIPMAP_LINEAR;
 }
 
 //----------------------------------------------------------
@@ -71,9 +91,14 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 		ofLogError("ofxTextureArray::loadData") << "Failed to upload " << w << "x" << h << "x" << d << " data to " << texData.tex_w << "x" << texData.tex_h << "x" << texData.tex_d << " texture";
 		return;
 	}
+	ofTexture t;
+	t.enableMipmap();
 
 	ofSetPixelStoreiAlignment(GL_UNPACK_ALIGNMENT, w, 1, ofGetNumChannelsFromGLFormat(glFormat));
 	bind();
 	glTexSubImage3D(texData.textureTarget, 0, xOffset, yOffset, layerOffset, w, h, d, texData.glType, texData.pixelType, data);
+
+	if(hasMipmap)
+		glGenerateMipmap(texData.textureTarget);
 	unbind();
 }
