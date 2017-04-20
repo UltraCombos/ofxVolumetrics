@@ -1,5 +1,5 @@
 #include "ofxTextureArray.h"
-
+#include "opencv.hpp"
 //----------------------------------------------------------
 ofxTextureArray::ofxTextureArray()
 	: ofxTexture()
@@ -77,7 +77,49 @@ void ofxTextureArray::enableMipmap()
 	hasMipmap = true;
 	texData.minFilter = GL_LINEAR_MIPMAP_LINEAR;
 }
+namespace
+{
+	void my_resize(cv::Mat& src, cv::Mat& dst, cv::Size size)
+	{
+		dst = cv::Mat(size, src.type());
+		int max_w = src.cols-1;
+		int max_h = src.rows-1;
+		float scale_x = (float)src.cols / dst.cols;
+		float scale_y = (float)src.rows / dst.rows;
+		for (int dy = 0; dy < size.width; ++dy)
+		{
+			for (int dx = 0; dx < size.height;++dx)
+			{
 
+				float sx = src.cols*((0.5f + dx) / dst.cols) - 0.5f;
+				float sy = src.rows*((0.5f + dy) / dst.rows) - 0.5f;
+				
+				float sx0 = ofClamp(floor(sx) + 0, 0, src.cols - 1);
+				float sy0 = ofClamp(floor(sy) + 0, 0, src.rows - 1);
+				float sx1 = ofClamp(floor(sx) + 1, 0, src.cols - 1);
+				float sy1 = ofClamp(floor(sy) + 1, 0, src.rows - 1);
+				float alpha = sx - sx0;
+				float beta = sy - sy0;
+
+				//a---b
+				//|   |
+				//c---d
+				cv::Vec4b & a = src.at<cv::Vec4b>(sy0,sx0);
+				cv::Vec4b & b = src.at<cv::Vec4b>(sy0,sx1);
+				cv::Vec4b & c = src.at<cv::Vec4b>(sy1,sx0);
+				cv::Vec4b & d = src.at<cv::Vec4b>(sy1,sx1);
+				
+				float wa = a[3] == 0 ? 0.f : (1 - alpha)*(1 - beta);
+				float wb = b[3] == 0 ? 0.f : (    alpha)*(1 - beta);
+				float wc = c[3] == 0 ? 0.f : (1 - alpha)*(    beta);
+				float wd = d[3] == 0 ? 0.f : (    alpha)*(    beta);
+				
+				dst.at<cv::Vec4b>(dy, dx) = (a*wa + b*wb + c*wc + d*wd) / (wa + wb + wc + wd);
+			}
+		}
+
+	}
+}
 //----------------------------------------------------------
 void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, int yOffset, int layerOffset, int glFormat)
 {
@@ -92,14 +134,34 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 		ofLogError("ofxTextureArray::loadData") << "Failed to upload " << w << "x" << h << "x" << d << " data to " << texData.tex_w << "x" << texData.tex_h << "x" << texData.tex_d << " texture";
 		return;
 	}
-	ofTexture t;
-	t.enableMipmap();
 
 	ofSetPixelStoreiAlignment(GL_UNPACK_ALIGNMENT, w, 1, ofGetNumChannelsFromGLFormat(glFormat));
 	bind();
 	glTexSubImage3D(texData.textureTarget, 0, xOffset, yOffset, layerOffset, w, h, d, texData.glType, texData.pixelType, data);
 
-	if(hasMipmap)
+	if (hasMipmap)
+	{
+#if 1
+		int level = std::max<int>(1, (int)log2(min(w, h)));
+		int width = w;
+		int height = h;
+		cv::Mat tmp(height, width, CV_8UC4, data);
+
+		for (int i = 1; i < level; ++i)
+		{		
+
+			width  = max(1,width / 2);
+			height = max(1,height / 2);
+			cv::Mat nxt;
+			my_resize(tmp, nxt, cv::Size(width, height));
+			tmp = nxt;
+			glTexSubImage3D(texData.textureTarget, i, xOffset, yOffset, layerOffset, width, height, d, texData.glType, texData.pixelType, tmp.data);
+			
+		}
+#else
 		glGenerateMipmap(texData.textureTarget);
+#endif
+	}
 	unbind();
 }
+
