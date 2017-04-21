@@ -1,5 +1,5 @@
 #include "ofxTextureArray.h"
-
+#include "opencv.hpp"
 //----------------------------------------------------------
 ofxTextureArray::ofxTextureArray()
 	: ofxTexture()
@@ -40,9 +40,24 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 	ofRetain();
 
 	bind();
-	glTexStorage3D(texData.textureTarget, 1, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+	if (hasMipmap)
+	{
+		int level = std::max<int>(1,(int)log2(min(w, h)));
+		glTexStorage3D(texData.textureTarget, level, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	}
+	else
+	{
+		glTexStorage3D(texData.textureTarget, 1, texData.glInternalFormat, (GLint)texData.tex_w, (GLint)texData.tex_h, (GLint)texData.tex_d);
+		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	}
+		
 
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	ofTexture t;
+	t.enableMipmap();
+
+	
+	//glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -56,7 +71,54 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 	texData.bFlipTexture = false;
 	texData.bAllocated = true;
 }
+//----------------------------------------------------------
+void ofxTextureArray::enableMipmap(bool hasMipmap/* = true*/, float ignored_alpha/* = 0.1f*/)
+{
+	this->hasMipmap = hasMipmap;
+	this->ignored_alpha = ignored_alpha;
+	texData.minFilter = hasMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
+}
+namespace
+{
+	void alpha_resize(cv::Mat& src, cv::Mat& dst, cv::Size size, float ignored_alpha)
+	{
+		dst = cv::Mat(size, src.type());
+		int max_w = src.cols-1;
+		int max_h = src.rows-1;
+		float scale_x = (float)src.cols / dst.cols;
+		float scale_y = (float)src.rows / dst.rows;
+		for (int dy = 0; dy < size.width; ++dy)
+		{
+			for (int dx = 0; dx < size.height;++dx)
+			{
 
+				float sx = src.cols*((0.5f + dx) / dst.cols) - 0.5f;
+				float sy = src.rows*((0.5f + dy) / dst.rows) - 0.5f;
+				
+				float sx0 = ofClamp(floor(sx) + 0, 0, src.cols - 1);
+				float sy0 = ofClamp(floor(sy) + 0, 0, src.rows - 1);
+				float sx1 = ofClamp(floor(sx) + 1, 0, src.cols - 1);
+				float sy1 = ofClamp(floor(sy) + 1, 0, src.rows - 1);
+				float alpha = sx - sx0;
+				float beta = sy - sy0;
+
+				//a---b
+				//|   |
+				//c---d
+				cv::Vec4b & a = src.at<cv::Vec4b>(sy0,sx0);
+				cv::Vec4b & b = src.at<cv::Vec4b>(sy0,sx1);
+				cv::Vec4b & c = src.at<cv::Vec4b>(sy1,sx0);
+				cv::Vec4b & d = src.at<cv::Vec4b>(sy1,sx1);
+				float wa = a[3]/255.f < ignored_alpha ? 0.f : (1 - alpha)*(1 - beta);
+				float wb = b[3]/255.f < ignored_alpha ? 0.f : (    alpha)*(1 - beta);
+				float wc = c[3]/255.f < ignored_alpha ? 0.f : (1 - alpha)*(    beta);
+				float wd = d[3]/255.f < ignored_alpha ? 0.f : (    alpha)*(    beta);
+				
+				dst.at<cv::Vec4b>(dy, dx) = (a*wa + b*wb + c*wc + d*wd) / (wa + wb + wc + wd);
+			}
+		}
+	}
+}
 //----------------------------------------------------------
 void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, int yOffset, int layerOffset, int glFormat)
 {
@@ -75,5 +137,35 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 	ofSetPixelStoreiAlignment(GL_UNPACK_ALIGNMENT, w, 1, ofGetNumChannelsFromGLFormat(glFormat));
 	bind();
 	glTexSubImage3D(texData.textureTarget, 0, xOffset, yOffset, layerOffset, w, h, d, texData.glType, texData.pixelType, data);
+
+	if (hasMipmap)
+	{
+#if 1
+		if (glFormat == GL_RGBA)
+		{
+			int level = std::max<int>(1, (int)log2(min(w, h)));
+			int width = w;
+			int height = h;
+			cv::Mat tmp(height, width, CV_8UC4, data);
+			for (int i = 1; i < level; ++i)
+			{
+				width = max(1, width / 2);
+				height = max(1, height / 2);
+				cv::Mat nxt;
+				alpha_resize(tmp, nxt, cv::Size(width, height),ignored_alpha);
+				tmp = nxt;
+				glTexSubImage3D(texData.textureTarget, i, xOffset, yOffset, layerOffset, width, height, d, texData.glType, texData.pixelType, tmp.data);
+
+			}
+		}
+		else
+		{
+			glGenerateMipmap(texData.textureTarget);
+		}
+#else
+		
+#endif
+	}
 	unbind();
 }
+
