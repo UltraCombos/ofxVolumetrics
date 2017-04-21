@@ -56,8 +56,8 @@ public:
 	void loadData(ofFloatPixels & pix, int d, int xOffset, int yOffset, int zOffset);
 	void loadData(const ofBufferObject & buffer, int zOffset, int glFormat, int glType);
 
-	void bind();
-	void unbind();
+	void bind(int textureLocation = 0);
+	void unbind(int textureLocation = 0);
 
 	ofxTextureData texData;
 

@@ -76,14 +76,20 @@ void ofxTexture::loadData(const ofBufferObject & buffer, int zOffset, int glForm
 }
 
 //----------------------------------------------------------
-void ofxTexture::bind()
+void ofxTexture::bind(int textureLocation)
 {
-	glActiveTexture((GLuint)texData.textureID);
+	glActiveTexture(GL_TEXTURE0 + textureLocation);
+	glClientActiveTexture(GL_TEXTURE0 + textureLocation);
+	glEnable(texData.textureTarget);
+	//glActiveTexture((GLuint)texData.textureID);
 	glBindTexture(texData.textureTarget, (GLuint)texData.textureID);
 }
 
 //----------------------------------------------------------
-void ofxTexture::unbind()
+void ofxTexture::unbind(int textureLocation)
 {
-	glActiveTexture(0);
+	//glActiveTexture(0);
+	glActiveTexture(GL_TEXTURE0 + textureLocation);
+	glBindTexture(texData.textureTarget, 0);
+	glActiveTexture(GL_TEXTURE0);
 }

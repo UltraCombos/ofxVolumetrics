@@ -10,6 +10,7 @@ class ofxVolumetricsArray
 {
 public:
 	ofxVolumetricsArray();
+	virtual ~ofxVolumetricsArray() {}
 
 	void setup(int w, int h, int d, ofVec3f voxelSize, bool usePowerOfTwoTexSize=false) override;
 	void setup(ofxTextureArray *texture, ofVec3f voxelSize);
