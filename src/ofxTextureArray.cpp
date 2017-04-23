@@ -80,6 +80,10 @@ void ofxTextureArray::enableMipmap(bool hasMipmap/* = true*/, float ignored_alph
 }
 namespace
 {
+	ofVec4f vec4f(cv::Vec4b & v)
+	{
+		return ofVec4f(v[0], v[1], v[2], v[3]);
+	}
 	void alpha_resize(cv::Mat& src, cv::Mat& dst, cv::Size size, float ignored_alpha)
 	{
 		dst = cv::Mat(size, src.type());
@@ -99,22 +103,42 @@ namespace
 				float sy0 = ofClamp(floor(sy) + 0, 0, src.rows - 1);
 				float sx1 = ofClamp(floor(sx) + 1, 0, src.cols - 1);
 				float sy1 = ofClamp(floor(sy) + 1, 0, src.rows - 1);
-				float alpha = sx - sx0;
-				float beta = sy - sy0;
-
-				//a---b
-				//|   |
-				//c---d
-				cv::Vec4b & a = src.at<cv::Vec4b>(sy0,sx0);
-				cv::Vec4b & b = src.at<cv::Vec4b>(sy0,sx1);
-				cv::Vec4b & c = src.at<cv::Vec4b>(sy1,sx0);
-				cv::Vec4b & d = src.at<cv::Vec4b>(sy1,sx1);
-				float wa = a[3]/255.f < ignored_alpha ? 0.f : (1 - alpha)*(1 - beta);
-				float wb = b[3]/255.f < ignored_alpha ? 0.f : (    alpha)*(1 - beta);
-				float wc = c[3]/255.f < ignored_alpha ? 0.f : (1 - alpha)*(    beta);
-				float wd = d[3]/255.f < ignored_alpha ? 0.f : (    alpha)*(    beta);
+				float a = sx - sx0;
+				float b = sy - sy0;				
+				//p[0]---p[1]
+				// |      |
+				//p[2]---p[3]
+				ofVec4f p[4] = {
+					vec4f(src.at<cv::Vec4b>(sy0,sx0)) / 255.f,
+					vec4f(src.at<cv::Vec4b>(sy0,sx1)) / 255.f,
+					vec4f(src.at<cv::Vec4b>(sy1,sx0)) / 255.f,
+					vec4f(src.at<cv::Vec4b>(sy1,sx1)) / 255.f,
+				};
 				
-				dst.at<cv::Vec4b>(dy, dx) = (a*wa + b*wb + c*wc + d*wd) / (wa + wb + wc + wd);
+				float w[4]=
+				{
+					(1 - a)*(1 - b),
+					(    a)*(1 - b),
+					(1 - a)*(    b),
+					(    a)*(    b),
+				};
+				ofVec4f weight_sum;
+				ofVec4f color;
+				for (int i = 0; i < 4; ++i)
+				{
+					ofVec4f weight = p[i][3] < ignored_alpha ? ofVec3f(0) : ofVec4f(w[i]);
+					weight[3] = w[i];
+					color += p[i] * weight;
+					weight_sum += weight;					
+				}
+				cv::Vec4b & result = dst.at<cv::Vec4b>(dy, dx);
+				for (int ch = 0; ch < 4; ++ch)
+				{	
+					if (weight_sum[ch] > 0)
+						result[ch] = (uchar)ofClamp(round(color[ch] / weight_sum[ch] * 255.f), 0, 255.f);
+					else
+						result[ch] = 0;
+				}
 			}
 		}
 	}
