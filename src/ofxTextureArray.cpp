@@ -74,45 +74,64 @@ void ofxTextureArray::allocate(int w, int h, int d, int internalGlDataType)
 //----------------------------------------------------------
 void ofxTextureArray::enableMipmap(bool hasMipmap/* = true*/, float ignored_alpha/* = 0.1f*/)
 {
+	//hasMipmap = false;
 	this->hasMipmap = hasMipmap;
 	this->ignored_alpha = ignored_alpha;
 	texData.minFilter = hasMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
 }
 namespace
 {
-	ofVec4f vec4f(cv::Vec4b & v)
-	{
-		return ofVec4f(v[0], v[1], v[2], v[3]);
-	}
 	void alpha_resize(cv::Mat& src, cv::Mat& dst, cv::Size size, float ignored_alpha)
 	{
-		dst = cv::Mat(size, src.type());
-		int max_w = src.cols-1;
-		int max_h = src.rows-1;
-		float scale_x = (float)src.cols / dst.cols;
-		float scale_y = (float)src.rows / dst.rows;
+		cv::Mat src32f;
+		cv::Mat dst32f;
+		int depth = src.depth();
+		
+		float scale;
+		switch (src.depth())
+		{
+		case CV_8U:
+			scale = 255.f;
+			break;
+		case CV_16U:
+			scale = 65535.f;
+			break;
+		default:
+		case CV_32F:
+			scale = 1.f;
+			break;
+		}
+
+		src.convertTo(src32f, CV_32FC4,1.f/ scale);
+		dst32f = cv::Mat(size, CV_32FC4);
+		//dst = cv::Mat(size, src.type());
+
+		int max_w = src32f.cols-1;
+		int max_h = src32f.rows-1;
+		float scale_x = (float)src32f.cols / dst32f.cols;
+		float scale_y = (float)src32f.rows / dst32f.rows;
 		for (int dy = 0; dy < size.width; ++dy)
 		{
 			for (int dx = 0; dx < size.height;++dx)
 			{
 
-				float sx = src.cols*((0.5f + dx) / dst.cols) - 0.5f;
-				float sy = src.rows*((0.5f + dy) / dst.rows) - 0.5f;
+				float sx = src32f.cols*((0.5f + dx) / dst32f.cols) - 0.5f;
+				float sy = src32f.rows*((0.5f + dy) / dst32f.rows) - 0.5f;
 				
-				float sx0 = ofClamp(floor(sx) + 0, 0, src.cols - 1);
-				float sy0 = ofClamp(floor(sy) + 0, 0, src.rows - 1);
-				float sx1 = ofClamp(floor(sx) + 1, 0, src.cols - 1);
-				float sy1 = ofClamp(floor(sy) + 1, 0, src.rows - 1);
+				float sx0 = ofClamp(floor(sx) + 0, 0, src32f.cols - 1);
+				float sy0 = ofClamp(floor(sy) + 0, 0, src32f.rows - 1);
+				float sx1 = ofClamp(floor(sx) + 1, 0, src32f.cols - 1);
+				float sy1 = ofClamp(floor(sy) + 1, 0, src32f.rows - 1);
 				float a = sx - sx0;
 				float b = sy - sy0;				
 				//p[0]---p[1]
 				// |      |
 				//p[2]---p[3]
 				ofVec4f p[4] = {
-					vec4f(src.at<cv::Vec4b>(sy0,sx0)) / 255.f,
-					vec4f(src.at<cv::Vec4b>(sy0,sx1)) / 255.f,
-					vec4f(src.at<cv::Vec4b>(sy1,sx0)) / 255.f,
-					vec4f(src.at<cv::Vec4b>(sy1,sx1)) / 255.f,
+					src32f.at<ofVec4f>(sy0,sx0),
+					src32f.at<ofVec4f>(sy0,sx1),
+					src32f.at<ofVec4f>(sy1,sx0),
+					src32f.at<ofVec4f>(sy1,sx1),
 				};
 				
 				float w[4]=
@@ -122,25 +141,39 @@ namespace
 					(1 - a)*(    b),
 					(    a)*(    b),
 				};
+
+				/*
+				if (p[0][3] >ignored_alpha)
+				{
+					printf("");
+				}
+				*/
 				ofVec4f weight_sum;
 				ofVec4f color;
 				for (int i = 0; i < 4; ++i)
 				{
-					ofVec4f weight = p[i][3] < ignored_alpha ? ofVec3f(0) : ofVec4f(w[i]);
-					weight[3] = w[i];
+					ofVec4f weight = p[i][3] < ignored_alpha ? ofVec4f(0) : ofVec4f(w[i]);
+					//weight[3] = w[i];
 					color += p[i] * weight;
 					weight_sum += weight;					
 				}
-				cv::Vec4b & result = dst.at<cv::Vec4b>(dy, dx);
+				
+				ofVec4f & result = dst32f.at<ofVec4f>(dy, dx);
+				//cv::Vec4b & result = dst.at<cv::Vec4b>(dy, dx);
 				for (int ch = 0; ch < 4; ++ch)
 				{	
-					if (weight_sum[ch] > 0)
-						result[ch] = (uchar)ofClamp(round(color[ch] / weight_sum[ch] * 255.f), 0, 255.f);
+					if (weight_sum[ch] > 0)					
+					{
+						result[ch] = color[ch] / weight_sum[ch];						
+						//result[ch] = (uchar)ofClamp(round(color[ch] / weight_sum[ch] * 255.f), 0, 255.f);
+					}
 					else
 						result[ch] = 0;
 				}
 			}
 		}
+
+		dst32f.convertTo(dst, src.type(), scale);
 	}
 }
 //----------------------------------------------------------
@@ -158,19 +191,40 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 		return;
 	}
 
-	ofSetPixelStoreiAlignment(GL_UNPACK_ALIGNMENT, w, 1, ofGetNumChannelsFromGLFormat(glFormat));
+	int numChannels = ofGetNumChannelsFromGLFormat(glFormat);
+	int bytePerChannel;
+	int cvType;
+	switch (texData.pixelType)
+	{
+	case GL_UNSIGNED_BYTE:
+		bytePerChannel = 1;
+		cvType = CV_8U;
+		break;
+	case GL_UNSIGNED_SHORT:
+		bytePerChannel = 2;
+		cvType = CV_16U;
+		break;
+	case GL_FLOAT:
+		cvType = CV_32F;		
+		bytePerChannel = 4;
+		break;
+	default:
+		ofLogError("ofxTextureArray::loadData") << "Unsupported format " << ofGetGlInternalFormatName(glFormat);
+		return;
+	}
+	
+	ofSetPixelStoreiAlignment(GL_UNPACK_ALIGNMENT, w, bytePerChannel, numChannels);
 	bind();
 	glTexSubImage3D(texData.textureTarget, 0, xOffset, yOffset, layerOffset, w, h, d, texData.glType, texData.pixelType, data);
 
 	if (hasMipmap)
 	{
-#if 1
-		if (glFormat == GL_RGBA)
+		if (numChannels == 4)
 		{
 			int level = std::max<int>(1, (int)log2(min(w, h)));
 			int width = w;
 			int height = h;
-			cv::Mat tmp(height, width, CV_8UC4, data);
+			cv::Mat tmp(height, width, CV_MAKETYPE(cvType, numChannels), data);
 			for (int i = 1; i < level; ++i)
 			{
 				width = max(1, width / 2);
@@ -179,16 +233,12 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 				alpha_resize(tmp, nxt, cv::Size(width, height),ignored_alpha);
 				tmp = nxt;
 				glTexSubImage3D(texData.textureTarget, i, xOffset, yOffset, layerOffset, width, height, d, texData.glType, texData.pixelType, tmp.data);
-
 			}
 		}
 		else
 		{
 			glGenerateMipmap(texData.textureTarget);
 		}
-#else
-		
-#endif
 	}
 	unbind();
 }
