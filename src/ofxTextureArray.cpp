@@ -230,7 +230,7 @@ void ofxTextureArray::loadData(void * data, int w, int h, int d, int xOffset, in
 				width = max(1, width / 2);
 				height = max(1, height / 2);
 				cv::Mat nxt;
-				alpha_resize(tmp, nxt, cv::Size(width, height),ignored_alpha);
+				alpha_resize(tmp, nxt, cv::Size(width, height),i==1?ignored_alpha:0.f);
 				tmp = nxt;
 				glTexSubImage3D(texData.textureTarget, i, xOffset, yOffset, layerOffset, width, height, d, texData.glType, texData.pixelType, tmp.data);
 			}
