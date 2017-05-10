@@ -142,33 +142,22 @@ namespace
 					(    a)*(    b),
 				};
 
-				/*
-				if (p[0][3] >ignored_alpha)
-				{
-					printf("");
-				}
-				*/
-				ofVec4f weight_sum;
+				float weight_sum=0.f;
 				ofVec4f color;
 				for (int i = 0; i < 4; ++i)
 				{
-					ofVec4f weight = p[i][3] < ignored_alpha ? ofVec4f(0) : ofVec4f(w[i]);
-					//weight[3] = w[i];
+					float weight = p[i][3] < ignored_alpha ? 0 : w[i];
 					color += p[i] * weight;
 					weight_sum += weight;					
 				}
 				
 				ofVec4f & result = dst32f.at<ofVec4f>(dy, dx);
-				//cv::Vec4b & result = dst.at<cv::Vec4b>(dy, dx);
-				for (int ch = 0; ch < 4; ++ch)
-				{	
-					if (weight_sum[ch] > 0)					
-					{
-						result[ch] = color[ch] / weight_sum[ch];						
-						//result[ch] = (uchar)ofClamp(round(color[ch] / weight_sum[ch] * 255.f), 0, 255.f);
-					}
-					else
-						result[ch] = 0;
+				if (weight_sum == 0)
+					result = ofVec4f(0.f, 0.f, 0.f, 0.f);
+				else
+				{
+					for (int ch = 0; ch < 4; ++ch)
+						result[ch] = color[ch] / weight_sum;
 				}
 			}
 		}
