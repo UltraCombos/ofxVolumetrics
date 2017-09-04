@@ -79,6 +79,7 @@ void ofxTextureArray::enableMipmap(bool hasMipmap/* = true*/, float ignored_alph
 	this->ignored_alpha = ignored_alpha;
 	texData.minFilter = hasMipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
 }
+
 namespace
 {
 	void alpha_resize(cv::Mat& src, cv::Mat& dst, cv::Size size, float ignored_alpha)
@@ -127,13 +128,13 @@ namespace
 				//p[0]---p[1]
 				// |      |
 				//p[2]---p[3]
-				ofVec4f p[4] = {
-					src32f.at<ofVec4f>(sy0,sx0),
-					src32f.at<ofVec4f>(sy0,sx1),
-					src32f.at<ofVec4f>(sy1,sx0),
-					src32f.at<ofVec4f>(sy1,sx1),
+				cv::Vec4f  p[4] = {
+					src32f.at<cv::Vec4f>(sy0,sx0),
+					src32f.at<cv::Vec4f>(sy0,sx1),
+					src32f.at<cv::Vec4f>(sy1,sx0),
+					src32f.at<cv::Vec4f>(sy1,sx1),
 				};
-				
+
 				float w[4]=
 				{
 					(1 - a)*(1 - b),
@@ -147,13 +148,16 @@ namespace
 				for (int i = 0; i < 4; ++i)
 				{
 					float weight = p[i][3] < ignored_alpha ? 0 : w[i];
-					color += p[i] * weight;
+					color[0] += p[i][0] * weight;
+					color[1] += p[i][1] * weight;
+					color[2] += p[i][2] * weight;
+					color[3] += p[i][3] * weight;
 					weight_sum += weight;					
 				}
 				
-				ofVec4f & result = dst32f.at<ofVec4f>(dy, dx);
+				cv::Vec4f & result = dst32f.at<cv::Vec4f>(dy, dx);
 				if (weight_sum == 0)
-					result = ofVec4f(0.f, 0.f, 0.f, 0.f);
+					result = cv::Vec4f(0, 0, 0, 0);
 				else
 				{
 					for (int ch = 0; ch < 4; ++ch)
